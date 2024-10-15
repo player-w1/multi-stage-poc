@@ -8,40 +8,40 @@ import Button from "react-bootstrap/Button";
 import InputGroup from "react-bootstrap/InputGroup";
 import FormControl from "react-bootstrap/FormControl";
 import ListGroup from "react-bootstrap/ListGroup";
-  
+
 class App extends Component {
     constructor(props) {
         super(props);
-  
+
         // Setting up state
         this.state = {
             userInput: "",
             list: [],
         };
     }
-  
+
     // Set a user input value
     updateInput(value) {
         this.setState({
             userInput: value,
         });
     }
-  
+
     // Add item if user input in not empty
     addItem() {
         if (this.state.userInput !== "") {
             const userInput = {
                 // Add a random id which is used to delete
                 id: Math.random(),
-  
+
                 // Add a user value to list
                 value: this.state.userInput,
             };
-  
+
             // Update list
             const list = [...this.state.list];
             list.push(userInput);
-  
+
             // reset state
             this.setState({
                 list,
@@ -49,20 +49,20 @@ class App extends Component {
             });
         }
     }
-  
+
     // Function to delete item from list use id to delete
     deleteItem(key) {
         const list = [...this.state.list];
-  
+
         // Filter values and leave value which we need to delete
         const updateList = list.filter((item) => item.id !== key);
-  
+
         // Update list in state
         this.setState({
             list: updateList,
         });
     }
-  
+
     editItem = (index) => {
       const todos = [...this.state.list];
       const editedTodo = prompt('Edit the todo:');
@@ -74,7 +74,7 @@ class App extends Component {
       });
       }
     }
-  
+
     render() {
         return (
             <Container>
@@ -89,7 +89,7 @@ class App extends Component {
                 >
                     10WeeksofCloudOps - TODO LIST
                 </Row>
-  
+
                 <hr />
                 <Row>
                     <Col md={{ span: 5, offset: 4 }}>
@@ -122,7 +122,7 @@ class App extends Component {
                             {/* map over and print items */}
                             {this.state.list.map((item, index) => {
                                 return (
-                                  <div key = {index} > 
+                                  <div key = {index} >
                                     <ListGroup.Item
                                         variant="dark"
                                         action
@@ -153,5 +153,5 @@ class App extends Component {
         );
     }
 }
-  
+
 export default App;

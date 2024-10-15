@@ -16,7 +16,7 @@ USER node
 
 WORKDIR /opt/node_app
 
-COPY package*.json ./
+COPY --chown=node:node package.json package-lock.json* ./
 RUN npm install 
 
 COPY . .

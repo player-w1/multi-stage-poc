@@ -1,0 +1,407 @@
+---
+name: "Continous Integration - Main"
+
+on: # yamllint disable-line rule:truthy
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+  schedule:
+    - cron: '32 6 * * *'
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+
+  secret-scanning:
+    name: GitGuardian - Scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.7
+        with:
+          fetch-depth: 0
+
+      - name: GitGuardian scan
+        uses: GitGuardian/ggshield/actions/secret@v1.30.1
+        env:
+          GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
+          GITHUB_PULL_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+
+  sast:
+    name: CodeQL - Analyze ${{ matrix.language }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    needs:
+      - secret-scanning
+
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: go
+          build-mode: autobuild
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+    - if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        echo 'If you are using a "manual" build mode for one or more of the' \
+          'languages you are analyzing, replace this with the commands to build' \
+          'your code, for example:'
+        echo '  make bootstrap'
+        echo '  make release'
+        exit 1
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+
+  build-test-image:
+    name: Docker - Build Test Image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    needs:
+      - secret-scanning
+
+    outputs:
+      image-tag: ${{ steps.docker_meta.outputs.labels }}
+
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+      pull-requests: write
+
+    env:
+      COMMENT-ENABLE: true
+      CONTEXT: true
+      FILE: false
+      FLAVOR-RULES: latest=auto
+      GHCR-ENABLE: true
+      IMAGE-NAMES: ghcr.io/${{ github.repository }}
+      PLATFORMS: linux/amd64
+      PUSH: true
+      TAG-RULES: |
+        type=raw,value=gha-${{ github.run_id }},enable=${{github.event_name == 'pull_request'}},priority=200
+      TARGET: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.7
+
+      - name: Set up QEMU
+        id: qemu
+        uses: docker/setup-qemu-action@v3.2.0
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3.5.0
+
+      - name: Login to GHCR
+        if: env.GHCR-ENABLE
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta
+        id: docker_meta
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ${{ env.IMAGE-NAMES }}
+          flavor: ${{ env.FLAVOR-RULES }}
+          tags: ${{ env.TAG-RULES }}
+
+      - name: Docker Build and Push
+        id: build_image
+        uses: docker/build-push-action@v6.5.0
+        with:
+          platforms: ${{ env.PLATFORMS }}
+          # {{ env.CONTEXT }}
+          context: .
+          # file: {{ env.FILE }}
+          # target: ${{ env.TARGET }}
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          push: ${{ env.PUSH }}
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
+          provenance: true
+          sbom: true
+
+      - name: Find comment for image tags
+        uses: peter-evans/find-comment@v3.1.0
+        if: github.event_name == 'pull_request' && env.COMMENT-ENABLE
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: Docker image tag(s) pushed
+
+      - name: Create or update comment for image tags
+        uses: peter-evans/create-or-update-comment@v4.0.0
+        if: github.event_name == 'pull_request' && env.COMMENT-ENABLE
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Docker image tag(s) pushed:
+            ```text
+            ${{ steps.docker_meta.outputs.tags }}
+            ```
+
+            Labels added to images:
+            ```text
+            ${{ steps.docker_meta.outputs.labels }}
+            ```
+          edit-mode: replace
+
+      - name: Find the primary image tag we just pushed, and output it
+        id: image-tag
+        run: |
+          # shellcheck disable=SC2086
+          echo "image-tag=${{ steps.docker_meta.outputs.version }}" >> $GITHUB_OUTPUT
+
+  sca:
+    name: Docker - Scan Test Image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    needs:
+      - build-test-image
+      - sast
+
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+
+    env:
+      COMMENT-ENABLE: true
+      FILE: false
+      FLAVOR-RULES: latest=auto
+      GHCR-ENABLE: true
+      IMAGE-NAMES: ghcr.io/${{ github.repository }}
+      PLATFORMS: linux/amd64,linux/arm64
+      PUSH: true
+      TAG-RULES: |
+        type=raw,value=gha-${{ github.run_id }},enable=${{github.event_name == 'pull_request'}},priority=200
+      TARGET: false
+
+    steps:
+
+      - name: Checkout git repo
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        if: env.GHCR-ENABLE
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta
+        id: docker_meta
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ${{ env.IMAGE-NAMES }}
+          flavor: ${{ env.FLAVOR-RULES }}
+          tags: ${{ env.TAG-RULES }}
+
+      - name: Pull image to scan
+        run: |
+          docker pull ${{ steps.docker_meta.outputs.tags }}
+
+      - name: Run Trivy for HIGH,CRITICAL CVEs and report (blocking)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ steps.docker_meta.outputs.tags }}
+          exit-code: 0
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'HIGH,CRITICAL'
+          format: 'sarif'
+          output: 'results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+          category: results
+
+  sbom:
+    name: SBOM - Generate and Publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    needs:
+      - sast
+      - sca
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy in GitHub SBOM mode and submit results to Dependency Graph
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: 'fs'
+          format: 'github'
+          output: 'dependency-results.sbom.json'
+          image-ref: '.'
+          github-pat: ${{ secrets.GITHUB_TOKEN }}
+
+  build-final-image:
+    name: Docker - Build Final Image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    needs:
+      - build-test-image
+      - sbom
+
+    outputs:
+      image-tag: ${{ steps.docker_meta.outputs.labels }}
+
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+      pull-requests: write
+
+    env:
+      COMMENT-ENABLE: true
+      CONTEXT: true
+      FILE: false
+      FLAVOR-RULES: latest=auto
+      GHCR-ENABLE: true
+      IMAGE-NAMES: ghcr.io/${{ github.repository }}
+      PLATFORMS: linux/amd64,linux/arm64
+      PUSH: true
+      TAG-RULES: |
+        type=raw,value=gha-${{ github.run_id }},enable=${{github.event_name == 'pull_request'}},priority=200
+        type=raw,value=latest,enable={{is_default_branch}},priority=100
+        type=raw,value=stable-{{date 'YYYYMMDD'}}-{{sha}},enable={{is_default_branch}},priority=300
+        type=ref,event=pr,priority=100
+        type=ref,event=tag,priority=200
+      TARGET: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.7
+
+      - name: Set up QEMU
+        id: qemu
+        uses: docker/setup-qemu-action@v3.2.0
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3.5.0
+
+      - name: Login to GHCR
+        if: env.GHCR-ENABLE
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta
+        id: docker_meta
+        uses: docker/metadata-action@v5.5.1
+        with:
+          images: ${{ env.IMAGE-NAMES }}
+          flavor: ${{ env.FLAVOR-RULES }}
+          tags: ${{ env.TAG-RULES }}
+
+      - name: Docker Build and Push
+        id: build_image
+        uses: docker/build-push-action@v6.5.0
+        with:
+          platforms: ${{ env.PLATFORMS }}
+          # {{ env.CONTEXT }}
+          context: .
+          # file: {{ env.FILE }}
+          # target: ${{ env.TARGET }}
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          push: ${{ env.PUSH }}
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
+          provenance: true
+          sbom: true
+
+      # - name: Attest
+      #   uses: actions/attest-build-provenance@v1.3.3
+      #   id: attest
+      #   with:
+      #     subject-name: ${{ env.IMAGE-NAMES }}
+      #     subject-digest: ${{ steps.docker_meta.outputs.digest }}
+      #     push-to-registry: true
+
+      - name: Find comment for image tags
+        uses: peter-evans/find-comment@v3.1.0
+        if: github.event_name == 'pull_request' && env.COMMENT-ENABLE
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: Docker image tag(s) pushed
+
+      - name: Create or update comment for image tags
+        uses: peter-evans/create-or-update-comment@v4.0.0
+        if: github.event_name == 'pull_request' && env.COMMENT-ENABLE
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            Docker image tag(s) pushed:
+            ```text
+            ${{ steps.docker_meta.outputs.tags }}
+            ```
+
+            Labels added to images:
+            ```text
+            ${{ steps.docker_meta.outputs.labels }}
+            ```
+          edit-mode: replace

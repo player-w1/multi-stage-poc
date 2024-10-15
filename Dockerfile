@@ -18,6 +18,7 @@ WORKDIR /opt/node_app
 
 COPY --chown=node:node package.json package-lock.json* ./
 RUN npm ci && npm cache clean --force
+ENV PATH /opt/node_app/node_modules/.bin:$PATH
 
 COPY . .
 

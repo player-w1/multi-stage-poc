@@ -14,7 +14,7 @@ ENTRYPOINT ["docker-entrypoint.sh"]
 
 USER node
 
-WORKDIR /app
+WORKDIR /opt/node_app
 
 COPY package*.json ./
 RUN npm install 

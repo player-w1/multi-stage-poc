@@ -1,0 +1,29 @@
+---
+services:
+  node:
+    build:
+      context: .
+      args:
+        - NODE_ENV=development
+    command: ../node_modules/.bin/nodemon --inspect=0.0.0.0:9229 ./bin/www
+    ports:
+      - "80:3000"
+      - "9229:9229"
+      - "9230:9230"
+    volumes:
+      - .:/opt/node_app/app
+      - ./package.json:/opt/node_app/package.json
+      - ./package-lock.json:/opt/node_app/package-lock.json
+      - notused:/opt/node_app/app/node_modules
+    environment:
+      - NODE_ENV=development
+      - MONGO_USERNAME=root
+      - MONGO_PASSWORD=example
+      - MONGO_HOSTNAME=mongo
+      - MONGO_PORT=27017
+      - MONGO_DATABASE_NAME=example-database
+    healthcheck:
+      disable: true
+
+volumes:
+  notused:

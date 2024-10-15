@@ -1,4 +1,4 @@
-FROM node:18-slim AS installer
+FROM node:18.20.4-slim AS installer
 
 ARG NODE_ENV=production
 ENV NODE_ENV $NODE_ENV
@@ -24,8 +24,10 @@ HEALTHCHECK --interval=30s CMD node healthcheck.js
 WORKDIR /opt/node_app/app
 COPY --chown=node:node . .
 
+CMD [ "node", "./bin/www" ]
+
 RUN npm run build
 
-FROM nginx:latest AS deployer
+FROM nginx:1.27.2 AS deployer
 
-COPY --from=installer /app/build /usr/share/nginx/html
+COPY --from=installer opt/node_app/app /usr/share/nginx/html

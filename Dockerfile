@@ -12,6 +12,8 @@ RUN npm i npm@latest -g
 COPY docker-entrypoint.sh /usr/local/bin/
 ENTRYPOINT ["docker-entrypoint.sh"]
 
+USER node
+
 WORKDIR /app
 
 COPY package*.json ./

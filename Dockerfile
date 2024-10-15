@@ -1,4 +1,4 @@
-FROM node:18-alpine AS installer
+FROM node:18-slim AS installer
 
 WORKDIR /app
 

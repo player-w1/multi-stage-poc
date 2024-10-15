@@ -1,5 +1,8 @@
 FROM node:18-slim AS installer
 
+ARG NODE_ENV=production
+ENV NODE_ENV $NODE_ENV
+
 WORKDIR /app
 
 COPY package*.json ./

@@ -9,6 +9,9 @@ EXPOSE $PORT 9229 9230
 
 RUN npm i npm@latest -g
 
+COPY docker-entrypoint.sh /usr/local/bin/
+ENTRYPOINT ["docker-entrypoint.sh"]
+
 WORKDIR /app
 
 COPY package*.json ./

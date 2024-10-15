@@ -17,14 +17,12 @@ USER node
 WORKDIR /opt/node_app
 
 COPY --chown=node:node package.json package-lock.json* ./
-RUN npm ci && npm cache clean --force
+RUN npm config list && npm ci && npm cache clean --force
 ENV PATH /opt/node_app/node_modules/.bin:$PATH
 HEALTHCHECK --interval=30s CMD node healthcheck.js
 
 WORKDIR /opt/node_app/app
 COPY --chown=node:node . .
-
-CMD [ "node", "./bin/www" ]
 
 RUN npm run build
 

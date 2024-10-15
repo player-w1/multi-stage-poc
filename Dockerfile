@@ -7,6 +7,8 @@ ARG PORT=3000
 ENV PORT $PORT
 EXPOSE $PORT 9229 9230
 
+RUN npm i npm@latest -g
+
 WORKDIR /app
 
 COPY package*.json ./

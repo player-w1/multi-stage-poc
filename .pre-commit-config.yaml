@@ -1,0 +1,51 @@
+---
+fail_fast: false
+ci:
+  autoupdate_schedule: monthly
+  skip:
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      - id: check-merge-conflict
+      - id: check-vcs-permalinks
+      - id: forbid-new-submodules
+      - id: forbid-submodules
+      - id: check-json
+      - id: check-yaml
+        files: /.(yaml|yml)$
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args:
+          - --markdown-linebreak-ext=md
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args:
+          - --fix=lf
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.5
+    hooks:
+      - id: remove-crlf
+      - id: remove-tabs
+  - repo: https://github.com/sirosen/texthooks
+    rev: 0.6.7
+    hooks:
+      - id: alphabetize-codeowners
+      - id: fix-smartquotes
+      - id: fix-ligatures
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.42.0
+    hooks:
+      - id: markdownlint
+        args:
+          - --config
+          - .config/.markdown-lint.yml
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args:
+          - -c
+          - .config/.yaml-lint.yml

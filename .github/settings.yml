@@ -1,7 +1,7 @@
 ---
 repository:
   name: multi-stage-poc
-  description: A sample todo app in react
+  description: POC for a multi-stage build docker image
   homepage: ""
   allow_auto_merge: true
   allow_merge_commit: false

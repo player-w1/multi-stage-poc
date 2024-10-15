@@ -21,7 +21,8 @@ RUN npm ci && npm cache clean --force
 ENV PATH /opt/node_app/node_modules/.bin:$PATH
 HEALTHCHECK --interval=30s CMD node healthcheck.js
 
-COPY . .
+WORKDIR /opt/node_app/app
+COPY --chown=node:node . .
 
 RUN npm run build
 

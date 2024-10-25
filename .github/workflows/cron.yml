@@ -238,7 +238,7 @@ jobs:
           docker pull ${{ steps.docker_meta.outputs.tags }}
 
       - name: Run Trivy for HIGH,CRITICAL CVEs and report (blocking)
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ steps.docker_meta.outputs.tags }}
           exit-code: 0
@@ -271,7 +271,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Trivy in GitHub SBOM mode and submit results to Dependency Graph
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: 'fs'
           format: 'github'

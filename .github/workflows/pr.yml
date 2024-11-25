@@ -132,7 +132,7 @@ jobs:
 
       - name: Docker meta
         id: docker_meta
-        uses: docker/metadata-action@v5.5.1
+        uses: docker/metadata-action@v5.6.1
         with:
           images: ${{ env.IMAGE-NAMES }}
           flavor: ${{ env.FLAVOR-RULES }}
@@ -230,7 +230,7 @@ jobs:
 
       - name: Docker meta
         id: docker_meta
-        uses: docker/metadata-action@v5.5.1
+        uses: docker/metadata-action@v5.6.1
         with:
           images: ${{ env.IMAGE-NAMES }}
           flavor: ${{ env.FLAVOR-RULES }}
@@ -340,7 +340,7 @@ jobs:
 
       - name: Docker meta
         id: docker_meta
-        uses: docker/metadata-action@v5.5.1
+        uses: docker/metadata-action@v5.6.1
         with:
           images: ${{ env.IMAGE-NAMES }}
           flavor: ${{ env.FLAVOR-RULES }}

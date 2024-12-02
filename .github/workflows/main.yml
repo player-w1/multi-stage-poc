@@ -140,7 +140,7 @@ jobs:
 
       - name: Docker Build and Push
         id: build_image
-        uses: docker/build-push-action@v6.5.0
+        uses: docker/build-push-action@v6.10.0
         with:
           platforms: ${{ env.PLATFORMS }}
           # {{ env.CONTEXT }}
@@ -348,7 +348,7 @@ jobs:
 
       - name: Docker Build and Push
         id: build_image
-        uses: docker/build-push-action@v6.5.0
+        uses: docker/build-push-action@v6.10.0
         with:
           platforms: ${{ env.PLATFORMS }}
           # {{ env.CONTEXT }}
